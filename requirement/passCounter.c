@@ -1,12 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <unistd.h>
 #include <sys/wait.h>
+#include <unistd.h>
+
 int numberOflines;
-int **arr; 
+int **arr;
 
 void readfromfile(const char *filename)
 {
@@ -52,54 +51,43 @@ int main(int argc, char *argv[])
 
     readfromfile(filename);
 
-    int shmid = shmget(IPC_PRIVATE, nofProcess * sizeof(int), IPC_CREAT | 0666);
-    if (shmid == -1)
-    {
-        perror("Shared memory creation failed");
-        exit(EXIT_FAILURE);
-    }
-
-    int *shm_arr = (int *)shmat(shmid, NULL, 0);
-    if (shm_arr == (void *)-1)
-    {
-        perror("Shared memory attachment failed");
-        exit(EXIT_FAILURE);
-    }
     for (int i = 0; i < nofProcess; i++)
-    {   
+    {
         int pid = fork();
-        if (pid < 0) {
+        if (pid < 0)
+        {
             fprintf(stderr, "Fork failed for TA %d\n", i);
             exit(EXIT_FAILURE);
-        } 
-        else if (pid == 0) {  // Child process
+        }
+        else if (pid == 0)
+        { // Child process
             int passing = 0;
             int start = i * (numberOflines / nofProcess);
             int end = (i == nofProcess - 1) ? numberOflines : (i + 1) * (numberOflines / nofProcess);
 
-            for (int j = start; j <end; j++)
+            for (int j = start; j < end; j++)
             {
-                if(arr[j][0]+arr[j][1] >= minGrade)
+                if (arr[j][0] + arr[j][1] >= minGrade)
                     passing++;
             }
-            shm_arr[i] = passing;
 
-            shmdt(shm_arr);
-            exit(0); 
-        } 
-    }
-    
-    for (int i = 0; i < nofProcess; i++)
-    wait(NULL);
-
-    for (int i = 0; i < nofProcess; i++)
-        {
-            char * out = (i == 0 )? "%d":" %d";
-            printf(out,shm_arr[i]);
+            exit(passing);
         }
+    }
+
+    for (int i = 0; i < nofProcess; i++)
+    {
+        int status;
+        int child_pid = wait(&status);
+        if (WIFEXITED(status))
+        {
+            int result = WEXITSTATUS(status);
+            char *s = ((i == 0) ? "%d" : (i == nofProcess - 1) ? " %d\n"
+                                                               : " %d");
+            printf(s, result);
+        }
+    }
 
     freeMemory();
-    shmdt(shm_arr);
-    shmctl(shmid, IPC_RMID, NULL);
     return 0;
 }
